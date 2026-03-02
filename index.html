@@ -479,7 +479,7 @@ function render() {
   // Weight
   const wd = document.getElementById('weightDisplay');
   if (log.weight) {
-    wd.innerHTML = `<div class="weight-display"><span class="weight-value">${log.weight} lbs</span><button class="edit-btn" onclick="showWeightInput()">Edit</button></div>`;
+    wd.innerHTML = `<div class="weight-display"><span class="weight-value">${log.weight} kg</span><button class="edit-btn" onclick="showWeightInput()">Edit</button></div>`;
   } else {
     wd.innerHTML = `<button class="add-weight-btn" onclick="showWeightInput()">+ Log Weight</button>`;
   }
@@ -585,7 +585,7 @@ function renderTrends() {
       type: 'line',
       data: {
         labels: wLabels,
-        datasets: [{ label: 'Weight (lbs)', data: wData, borderColor: '#7ECEC1', backgroundColor: 'rgba(126,206,193,0.15)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#7ECEC1', borderWidth: 2.5 }]
+        datasets: [{ label: 'Weight (kg)', data: wData, borderColor: '#7ECEC1', backgroundColor: 'rgba(126,206,193,0.15)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#7ECEC1', borderWidth: 2.5 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
