@@ -286,12 +286,12 @@
 // Firebase Console → Project Settings → Your apps → Config
 // ============================================================
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY_HERE",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC9xxsJA6xOSisDpLRUaELUuaAHpdm6igI",
+  authDomain: "nourishtrack-2d8d0.firebaseapp.com",
+  projectId: "nourishtrack-2d8d0",
+  storageBucket: "nourishtrack-2d8d0.firebasestorage.app",
+  messagingSenderId: "194862433486",
+  appId: "1:194862433486:web:9fee68bfa869fded9e7c9f"
 };
 // ============================================================
 // ⬆️ ONLY this config block needs your values. Don't touch below.
@@ -350,9 +350,18 @@ async function loadUserData() {
 }
 
 // Auth
-document.getElementById('googleSignIn').addEventListener('click',()=>{
-  const p=new firebase.auth.GoogleAuthProvider();
-  auth.signInWithPopup(p).catch(err=>{if(err.code==='auth/popup-blocked'||err.code==='auth/popup-closed-by-user')auth.signInWithRedirect(p);});
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+// Handle redirect result on page load (runs before onAuthStateChanged resolves)
+auth.getRedirectResult().catch(err=>console.error('Redirect error:',err));
+
+document.getElementById('googleSignIn').addEventListener('click',async()=>{
+  try {
+    await auth.signInWithPopup(googleProvider);
+  } catch(err) {
+    console.log('Popup failed, trying redirect:', err.code);
+    auth.signInWithRedirect(googleProvider);
+  }
 });
 document.getElementById('signOutBtn').addEventListener('click',()=>auth.signOut());
 
