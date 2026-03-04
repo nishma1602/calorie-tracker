@@ -271,8 +271,8 @@
         <span id="deficitRemaining" style="font-size:12px;color:#8B8295;">15,000 cal to go</span>
       </div>
     </div>
-    <div class="card"><h3 class="chart-title">🔥 Calorie Intake (Last 14 days)</h3><div class="chart-wrap" id="calChartWrap"><canvas id="calChart"></canvas></div><p class="empty-text hidden" id="calChartEmpty">Start logging to see your calorie trends!</p></div>
-    <div class="card"><h3 class="chart-title">⚖️ Weight Trend (Last 14 days)</h3><div class="chart-wrap" id="weightChartWrap"><canvas id="weightChart"></canvas></div><p class="empty-text hidden" id="weightChartEmpty">Log your weight daily to see your trend!</p></div>
+    <div class="card"><h3 class="chart-title" id="calChartTitle">🔥 Calorie Intake (March)</h3><div class="chart-wrap" id="calChartWrap"><canvas id="calChart"></canvas></div><p class="empty-text hidden" id="calChartEmpty">Start logging to see your calorie trends!</p></div>
+    <div class="card"><h3 class="chart-title" id="weightChartTitle">⚖️ Weight Trend (March)</h3><div class="chart-wrap" id="weightChartWrap"><canvas id="weightChart"></canvas></div><p class="empty-text hidden" id="weightChartEmpty">Log your weight daily to see your trend!</p></div>
     <div class="card"><h3 class="chart-title">📊 This Week</h3><div class="week-grid" id="weekGrid"></div></div>
   </div>
   <div class="tab-content" id="tab-library">
@@ -325,12 +325,17 @@ const ENCOURAGEMENTS = ["You're crushing it! 💪","One day at a time, queen! �
 let foodLibrary = [], dailyLogs = {}, favorites = [];
 let selectedDate = todayKey(), currentMealCategory = 'breakfast', currentUser = null, saveTimeout = null;
 
-function todayKey() { return new Date().toISOString().split('T')[0]; }
+function todayKey() {
+  return new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
+}
 function getLog(date) { return dailyLogs[date] || { weight: null, meals: [], totalCalories: 0 }; }
 function getDateLabel(ds) {
-  const t = todayKey(), y = new Date(); y.setDate(y.getDate()-1);
+  const t = todayKey();
+  const nowPST = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));
+  const yPST = new Date(nowPST); yPST.setDate(yPST.getDate()-1);
+  const yKey = yPST.toLocaleDateString('en-CA');
   if (ds === t) return 'Today';
-  if (ds === y.toISOString().split('T')[0]) return 'Yesterday';
+  if (ds === yKey) return 'Yesterday';
   return new Date(ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 }
 function getStreakInfo(s) {
@@ -341,10 +346,12 @@ function getStreakInfo(s) {
   return {emoji:'🌱',label:'STARTING',color:'#A8D5BA'};
 }
 function calcStreak() {
-  let streak=0,d=new Date();
+  let streak=0;
+  const nowPST=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));
+  let d=new Date(nowPST);
   const th=dailyLogs[todayKey()]?.meals?.length>0;
   if(!th) d.setDate(d.getDate()-1);
-  while(true){const k=d.toISOString().split('T')[0],l=dailyLogs[k];if(l&&l.meals&&l.meals.length>0){streak++;d.setDate(d.getDate()-1);}else break;}
+  while(true){const k=d.toLocaleDateString('en-CA');const l=dailyLogs[k];if(l&&l.meals&&l.meals.length>0){streak++;d.setDate(d.getDate()-1);}else break;}
   if(th) streak=Math.max(streak,1);
   return streak;
 }
@@ -447,23 +454,41 @@ function renderTrends(){
   document.getElementById('deficitPercent').textContent=Math.round(defPct)+'%';
   document.getElementById('deficitRemaining').textContent=defRemaining.toLocaleString()+' cal to go';
 
-  const entries=Object.entries(dailyLogs).sort(([a],[b])=>a.localeCompare(b)).slice(-14);
-  const labels=entries.map(([d])=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
-  const cals=entries.map(([,l])=>l.totalCalories||0),targets=entries.map(()=>TARGET);
+  // Generate all dates for current month (March 2026 starts on 2nd, all others start on 1st)
+  const nowLocal=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));
+  const yr=nowLocal.getFullYear(),mo=nowLocal.getMonth();
+  const startDay=(yr===2026&&mo===2)?2:1; // March 2026 = month index 2
+  const monthStartDate=new Date(yr,mo,startDay);
+  const lastDay=new Date(yr,mo+1,0).getDate();
+  const allDates=[];
+  for(let day=startDay;day<=lastDay;day++){
+    const d=new Date(yr,mo,day);
+    allDates.push(d.toLocaleDateString('en-CA'));
+  }
+  const monthName=monthStartDate.toLocaleDateString('en-US',{month:'long'});
+  document.getElementById('calChartTitle').textContent='🔥 Calorie Intake ('+monthName+')';
+  document.getElementById('weightChartTitle').textContent='⚖️ Weight Trend ('+monthName+')';
+
+  const labels=allDates.map(d=>{const dt=new Date(d+'T12:00:00');return dt.getDate().toString();});
+  const cals=allDates.map(d=>{const l=dailyLogs[d];return(l&&l.meals&&l.meals.length>0)?l.totalCalories:null;});
+  const targets=allDates.map(()=>TARGET);
+  const weights=allDates.map(d=>{const l=dailyLogs[d];return l?.weight||null;});
+
+  const hasAnyCals=cals.some(c=>c!==null);
   const cce=document.getElementById('calChartEmpty'),ccw=document.getElementById('calChartWrap');
-  if(entries.length===0){cce.classList.remove('hidden');ccw.style.display='none';}
+  if(!hasAnyCals){cce.classList.remove('hidden');ccw.style.display='none';}
   else{cce.classList.add('hidden');ccw.style.display='block';if(calChartInstance)calChartInstance.destroy();
-    calChartInstance=new Chart(document.getElementById('calChart'),{type:'line',data:{labels,datasets:[{label:'Calories',data:cals,borderColor:'#FF6B35',backgroundColor:'rgba(255,107,53,0.15)',fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:'#FF6B35',borderWidth:2.5},{label:'Target',data:targets,borderColor:'#E8AA42',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#2A2235',titleColor:'#fff',bodyColor:'#fff',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,cornerRadius:12,padding:12}},scales:{x:{ticks:{color:'#8B8295',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#8B8295',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'},min:1000,max:2000}}}});}
+    calChartInstance=new Chart(document.getElementById('calChart'),{type:'line',data:{labels,datasets:[{label:'Calories',data:cals,borderColor:'#FF6B35',backgroundColor:'rgba(255,107,53,0.15)',fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#FF6B35',borderWidth:2.5,spanGaps:true},{label:'Target',data:targets,borderColor:'#E8AA42',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#2A2235',titleColor:'#fff',bodyColor:'#fff',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,cornerRadius:12,padding:12,callbacks:{title:function(items){return monthName.slice(0,3)+' '+items[0].label;} }}},scales:{x:{ticks:{color:'#8B8295',font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:'#8B8295',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'},min:1000,max:2000}}}});}
+
+  const hasAnyWeight=weights.some(w=>w!==null);
   const wce=document.getElementById('weightChartEmpty'),wcw=document.getElementById('weightChartWrap');
-  const wE=entries.filter(([,l])=>l.weight);
-  if(wE.length===0){wce.classList.remove('hidden');wcw.style.display='none';}
+  if(!hasAnyWeight){wce.classList.remove('hidden');wcw.style.display='none';}
   else{wce.classList.add('hidden');wcw.style.display='block';
-    const wL=wE.map(([d])=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})),wD=wE.map(([,l])=>l.weight);
     if(weightChartInstance)weightChartInstance.destroy();
-    weightChartInstance=new Chart(document.getElementById('weightChart'),{type:'line',data:{labels:wL,datasets:[{label:'Weight (kg)',data:wD,borderColor:'#7ECEC1',backgroundColor:'rgba(126,206,193,0.15)',fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:'#7ECEC1',borderWidth:2.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#2A2235',titleColor:'#fff',bodyColor:'#fff',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,cornerRadius:12,padding:12}},scales:{x:{ticks:{color:'#8B8295',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#8B8295',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'},min:55,max:65}}}});}
-  const now=new Date(),dow=now.getDay(),ws=new Date(now);ws.setDate(now.getDate()-dow);
+    weightChartInstance=new Chart(document.getElementById('weightChart'),{type:'line',data:{labels,datasets:[{label:'Weight (kg)',data:weights,borderColor:'#7ECEC1',backgroundColor:'rgba(126,206,193,0.15)',fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#7ECEC1',borderWidth:2.5,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#2A2235',titleColor:'#fff',bodyColor:'#fff',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,cornerRadius:12,padding:12,callbacks:{title:function(items){return monthName.slice(0,3)+' '+items[0].label;} }}},scales:{x:{ticks:{color:'#8B8295',font:{size:10},maxRotation:0},grid:{display:false}},y:{ticks:{color:'#8B8295',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'},min:55,max:65}}}});}}
+  const nowPST=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Los_Angeles'})),dow=nowPST.getDay(),ws=new Date(nowPST);ws.setDate(nowPST.getDate()-dow);
   let tc=0,dl=0,tw=0,wd=0;
-  for(let i=0;i<=dow;i++){const d=new Date(ws);d.setDate(ws.getDate()+i);const k=d.toISOString().split('T')[0],l=dailyLogs[k];if(l?.meals?.length>0){tc+=l.totalCalories;dl++;}if(l?.weight){tw+=l.weight;wd++;}}
+  for(let i=0;i<=dow;i++){const d=new Date(ws);d.setDate(ws.getDate()+i);const k=d.toLocaleDateString('en-CA');const l=dailyLogs[k];if(l?.meals?.length>0){tc+=l.totalCalories;dl++;}if(l?.weight){tw+=l.weight;wd++;}}
   const ac=dl>0?Math.round(tc/dl):0,aw=wd>0?(tw/wd).toFixed(1):'—',un=dl>0?Math.round((TARGET*dl-tc)/dl):0;
   document.getElementById('weekGrid').innerHTML=`<div class="week-stat"><div class="week-stat-val">${dl}</div><div class="week-stat-label">days logged</div></div><div class="week-stat"><div class="week-stat-val">${ac}</div><div class="week-stat-label">avg cal/day</div></div><div class="week-stat"><div class="week-stat-val" style="color:${un>=0?'#7ECEC1':'#FF4757'}">${un>=0?un:'+'+Math.abs(un)}</div><div class="week-stat-label">${un>=0?'avg under target':'avg over target'}</div></div><div class="week-stat"><div class="week-stat-val">${aw}</div><div class="week-stat-label">avg weight</div></div>`;
 }
